@@ -1,0 +1,42 @@
+name: Daily AI News Update
+
+on:
+  schedule:
+    # 毎朝 JST 6:30 (UTC 21:30) に自動実行
+    - cron: '30 21 * * *'
+  # GitHub画面からいつでも手動実行可能
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python環境のセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: 依存ライブラリのインストール
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: AIニュースの収集・要約・HTML生成
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python src/main.py
+
+      - name: 生成したHTMLをコミット＆プッシュ
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update AI news digest [skip ci]" && git push)
