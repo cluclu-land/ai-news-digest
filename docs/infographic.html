@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture Infographic | 毎朝自動更新AIニュースまとめシステム</title>
+  <meta name="description" content="完全無料で運用するサーバーレスAIニュース要約システムのアーキテクチャ・インフォグラフィック">
+  <style>
+    :root {
+      --bg-base: #090d16;
+      --bg-card: rgba(17, 24, 39, 0.85);
+      --bg-card-hover: rgba(30, 41, 59, 0.95);
+      --border-color: rgba(56, 189, 248, 0.2);
+      --border-glow: rgba(56, 189, 248, 0.6);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-purple: #a855f7;
+      --accent-amber: #f59e0b;
+      --gradient-primary: linear-gradient(135deg, #38bdf8 0%, #3b82f6 50%, #8b5cf6 100%);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding-bottom: 60px;
+    }
+
+    /* 背景グリッドとグロー */
+    .bg-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-image: 
+        radial-gradient(circle at 50% 20%, rgba(56, 189, 248, 0.12) 0%, transparent 60%),
+        radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 32px 20px;
+    }
+
+    /* ヘッダー */
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 6px 16px;
+      border-radius: 9999px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(8px);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-pulse {
+      width: 8px;
+      height: 8px;
+      background-color: var(--accent-cyan);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.8); }
+      70% { box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.7rem);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      font-size: clamp(0.95rem, 2vw, 1.15rem);
+      color: var(--text-muted);
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    /* KPI / ハイライトバー */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+
+    .kpi-card:hover {
+      border-color: var(--border-glow);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(56, 189, 248, 0.15);
+    }
+
+    .kpi-num {
+      font-size: 2.2rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+      font-feature-settings: "tnum";
+    }
+
+    .kpi-num.cyan { color: var(--accent-cyan); }
+    .kpi-num.emerald { color: var(--accent-emerald); }
+    .kpi-num.purple { color: var(--accent-purple); }
+    .kpi-num.amber { color: var(--accent-amber); }
+
+    .kpi-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* メイン・パイプラインSVGコンテナ */
+    .pipeline-wrapper {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 32px 24px;
+      margin-bottom: 48px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+      position: relative;
+    }
+
+    .section-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+
+    .svg-container {
+      width: 100%;
+      overflow-x: auto;
+      padding-bottom: 10px;
+    }
+
+    svg.pipeline-svg {
+      min-width: 860px;
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* SVG内アニメーション */
+    .flow-line {
+      stroke-dasharray: 8, 8;
+      animation: dashFlow 1.2s linear infinite;
+    }
+
+    @keyframes dashFlow {
+      to {
+        stroke-dashoffset: -16;
+      }
+    }
+
+    .pulse-node {
+      animation: nodePulse 3s ease-in-out infinite alternate;
+    }
+
+    @keyframes nodePulse {
+      0% { filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.4)); }
+      100% { filter: drop-shadow(0 0 14px rgba(56, 189, 248, 0.8)); }
+    }
+
+    /* 技術スタック詳細グリッド */
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 48px;
+    }
+
+    .tech-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 24px;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tech-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: var(--card-accent, var(--accent-cyan));
+    }
+
+    .tech-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-glow);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+    }
+
+    .tech-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      color: var(--card-accent, var(--accent-cyan));
+    }
+
+    .tech-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .tech-category {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--card-accent, var(--accent-cyan));
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .tech-desc {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+
+    .tech-tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tech-tag {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-main);
+    }
+
+    /* 仕組みの深掘りセクション（Why Free & Automated） */
+    .deep-dive {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+
+    .dive-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 28px;
+      backdrop-filter: blur(12px);
+    }
+
+    .dive-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .dive-icon {
+      font-size: 1.6rem;
+    }
+
+    .dive-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+    }
+
+    .dive-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .dive-list li {
+      position: relative;
+      padding-left: 24px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .dive-list li::before {
+      content: "✔";
+      position: absolute;
+      left: 0;
+      color: var(--accent-emerald);
+      font-weight: bold;
+    }
+
+    /* フッター */
+    footer {
+      text-align: center;
+      padding-top: 32px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    footer a {
+      color: var(--accent-cyan);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+
+  <div class="container">
+    <!-- ナビゲーション -->
+    <div style="margin-bottom: 24px;">
+      <a href="index.html" style="display: inline-flex; align-items: center; gap: 6px; color: var(--accent-cyan); text-decoration: none; font-size: 0.85rem; font-weight: 600; padding: 6px 14px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px;">
+        ← AIニュースまとめ本編に戻る
+      </a>
+    </div>
+
+    <!-- ヘッダー -->
+    <header>
+      <div class="badge">
+        <span class="badge-pulse"></span>
+        Zero Cost & Serverless Architecture
+      </div>
+      <h1>毎朝自動更新 AIニュースまとめシステム</h1>
+      <p class="subtitle">
+        GitHub Actions × Google Gemini API × GitHub Pages を完全連携させ、
+        完全無料・保守フリーで毎朝通勤中にサクッと読めるWebメディアを自動稼働させる仕組み
+      </p>
+    </header>
+
+    <!-- KPIサマリー -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-num cyan">0 円</div>
+        <div class="kpi-label">月額運用コスト（完全無料）</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-num emerald">35 秒</div>
+        <div class="kpi-label">毎朝の処理時間（収集〜公開）</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-num purple">0.9 %</div>
+        <div class="kpi-label">GitHub無料枠消費率（月18分/2000分）</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-num amber">100 %</div>
+        <div class="kpi-label">サーバーレス・メンテフリー</div>
+      </div>
+    </div>
+
+    <!-- インタラクティブ・パイプラインSVG -->
+    <div class="pipeline-wrapper">
+      <div class="section-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-cyan)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        リアルタイム・データフロー図（毎朝JST 6:30自動トリガー）
+      </div>
+      <div class="section-desc">
+        矢印上を流れる光線は、毎朝実行されるデータパイプラインの流れを表現しています。
+      </div>
+
+      <div class="svg-container">
+        <svg class="pipeline-svg" viewBox="0 0 920 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="gradCyanBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="100%" stop-color="#3b82f6" />
+            </linearGradient>
+            <linearGradient id="gradPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#c084fc" />
+              <stop offset="100%" stop-color="#9333ea" />
+            </linearGradient>
+            <linearGradient id="gradEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#34d399" />
+              <stop offset="100%" stop-color="#059669" />
+            </linearGradient>
+            <linearGradient id="gradAmber" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#fbbf24" />
+              <stop offset="100%" stop-color="#d97706" />
+            </linearGradient>
+            <!-- 影フィルター -->
+            <filter id="glowFilter" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="8" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+
+          <!-- 接続ライン（背面） -->
+          <!-- 1. RSS -> GitHub Actions -->
+          <path d="M 170 160 L 260 160" stroke="rgba(56, 189, 248, 0.3)" stroke-width="3" />
+          <path class="flow-line" d="M 170 160 L 260 160" stroke="#38bdf8" stroke-width="3" />
+
+          <!-- 2. Actions <-> Gemini (往復) -->
+          <path d="M 390 135 L 490 90" stroke="rgba(168, 85, 247, 0.3)" stroke-width="3" />
+          <path class="flow-line" d="M 390 135 L 490 90" stroke="#c084fc" stroke-width="3" />
+          
+          <path d="M 490 110 L 390 160" stroke="rgba(168, 85, 247, 0.3)" stroke-width="3" />
+          <path class="flow-line" d="M 490 110 L 390 160" stroke="#c084fc" stroke-width="3" />
+
+          <!-- 3. Actions -> Jinja2/HTML -->
+          <path d="M 390 185 L 490 230" stroke="rgba(52, 211, 153, 0.3)" stroke-width="3" />
+          <path class="flow-line" d="M 390 185 L 490 230" stroke="#34d399" stroke-width="3" />
+
+          <!-- 4. HTML -> GitHub Pages / スマホ -->
+          <path d="M 640 230 L 730 160" stroke="rgba(56, 189, 248, 0.3)" stroke-width="3" />
+          <path class="flow-line" d="M 640 230 L 730 160" stroke="#38bdf8" stroke-width="3" />
+
+          <!-- ノード1: ニュース情報源 (RSS Sources) -->
+          <g transform="translate(30, 85)">
+            <rect width="140" height="150" rx="16" fill="#131c2e" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5" />
+            <rect x="15" y="15" width="30" height="30" rx="8" fill="url(#gradCyanBlue)" opacity="0.2" />
+            <text x="30" y="35" text-anchor="middle" font-size="14" fill="#38bdf8" font-weight="bold">RSS</text>
+            <text x="15" y="65" font-size="13" fill="#f8fafc" font-weight="bold">ニュース収集元</text>
+            <text x="15" y="86" font-size="10" fill="#94a3b8">• OpenAI News</text>
+            <text x="15" y="103" font-size="10" fill="#94a3b8">• Google AI Blog</text>
+            <text x="15" y="120" font-size="10" fill="#94a3b8">• TechCrunch AI</text>
+            <text x="15" y="137" font-size="10" fill="#94a3b8">• ITmedia AI+</text>
+          </g>
+
+          <!-- ノード2: GitHub Actions (中央オーケストレーター) -->
+          <g transform="translate(260, 95)" class="pulse-node">
+            <rect width="130" height="130" rx="20" fill="#1e1b4b" stroke="url(#gradPurple)" stroke-width="2" />
+            <circle cx="65" cy="42" r="18" fill="url(#gradPurple)" />
+            <text x="65" y="47" text-anchor="middle" font-size="13" fill="#ffffff" font-weight="bold">CI/CD</text>
+            <text x="65" y="80" text-anchor="middle" font-size="12" fill="#ffffff" font-weight="bold">GitHub Actions</text>
+            <text x="65" y="98" text-anchor="middle" font-size="10" fill="#c084fc">毎朝 6:30 Cron</text>
+            <text x="65" y="113" text-anchor="middle" font-size="9" fill="#94a3b8">実行時間: 35秒</text>
+          </g>
+
+          <!-- ノード3: Google Gemini API (AI要約) -->
+          <g transform="translate(490, 35)">
+            <rect width="150" height="110" rx="16" fill="#131c2e" stroke="rgba(192, 132, 252, 0.4)" stroke-width="1.5" />
+            <text x="18" y="32" font-size="13" fill="#ffffff" font-weight="bold">Google Gemini API</text>
+            <text x="18" y="50" font-size="10" fill="#c084fc" font-weight="bold">gemini-2.5-flash</text>
+            <text x="18" y="70" font-size="9.5" fill="#94a3b8">• 一括プロンプト投入</text>
+            <text x="18" y="86" font-size="9.5" fill="#94a3b8">• 3行要約 + ポイント抽出</text>
+            <text x="18" y="102" font-size="9.5" fill="#34d399">✔ Free Tier（完全無料）</text>
+          </g>
+
+          <!-- ノード4: HTML Generator (Jinja2) -->
+          <g transform="translate(490, 175)">
+            <rect width="150" height="110" rx="16" fill="#131c2e" stroke="rgba(52, 211, 153, 0.4)" stroke-width="1.5" />
+            <text x="18" y="32" font-size="13" fill="#ffffff" font-weight="bold">HTML Generator</text>
+            <text x="18" y="50" font-size="10" fill="#34d399" font-weight="bold">Python + Jinja2</text>
+            <text x="18" y="70" font-size="9.5" fill="#94a3b8">• モバイル特化UI設計</text>
+            <text x="18" y="86" font-size="9.5" fill="#94a3b8">• ダークモード自動切替</text>
+            <text x="18" y="102" font-size="9.5" fill="#94a3b8">• docs/index.html 出力</text>
+          </g>
+
+          <!-- ノード5: スマホ / GitHub Pages (エンドユーザー) -->
+          <g transform="translate(730, 80)">
+            <rect width="160" height="160" rx="20" fill="#064e3b" stroke="url(#gradEmerald)" stroke-width="2" />
+            <!-- スマホ画面アイコン風枠 -->
+            <rect x="25" y="18" width="110" height="70" rx="8" fill="#022c22" stroke="rgba(52, 211, 153, 0.5)" />
+            <rect x="35" y="28" width="50" height="6" rx="3" fill="#34d399" />
+            <rect x="35" y="40" width="90" height="4" rx="2" fill="#6ee7b7" opacity="0.6" />
+            <rect x="35" y="48" width="75" height="4" rx="2" fill="#6ee7b7" opacity="0.6" />
+            <rect x="35" y="56" width="60" height="4" rx="2" fill="#6ee7b7" opacity="0.6" />
+
+            <text x="80" y="112" text-anchor="middle" font-size="12" fill="#ffffff" font-weight="bold">GitHub Pages</text>
+            <text x="80" y="130" text-anchor="middle" font-size="10.5" fill="#34d399" font-weight="bold">スマホ・ブラウザ閲覧</text>
+            <text x="80" y="148" text-anchor="middle" font-size="9" fill="#a7f3d0">URLを開くだけ / アプリ不要</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- 技術スタック詳細カード -->
+    <div class="tech-grid">
+      <!-- Card 1 -->
+      <div class="tech-card" style="--card-accent: #a855f7;">
+        <div class="tech-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+        </div>
+        <div class="tech-category">Orchestration</div>
+        <h2 class="tech-title">GitHub Actions</h2>
+        <p class="tech-desc">
+          完全サーバーレスの定期実行エンジン。毎朝JST 6:30に自律起動し、仮想環境の構築からプッシュまで全自動化。
+        </p>
+        <div class="tech-tag-list">
+          <span class="tech-tag">Cron 定期実行</span>
+          <span class="tech-tag">月2000分無料枠</span>
+          <span class="tech-tag">Secrets 暗号化保管</span>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="tech-card" style="--card-accent: #c084fc;">
+        <div class="tech-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>
+        </div>
+        <div class="tech-category">AI Summarization</div>
+        <h2 class="tech-title">Google Gemini API</h2>
+        <p class="tech-desc">
+          最新の gemini-2.5-flash モデルを活用。高速かつ的確な日本語3行要約と「ここがポイント」を一括JSON出力。
+        </p>
+        <div class="tech-tag-list">
+          <span class="tech-tag">Free Tier (完全無料)</span>
+          <span class="tech-tag">構造化JSON出力</span>
+          <span class="tech-tag">多言語対応</span>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="tech-card" style="--card-accent: #10b981;">
+        <div class="tech-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+        </div>
+        <div class="tech-category">Web Delivery</div>
+        <h2 class="tech-title">GitHub Pages</h2>
+        <p class="tech-desc">
+          生成された index.html を世界中に高速配信。独自アプリのインストール不要で、URLをホーム画面追加するだけで完結。
+        </p>
+        <div class="tech-tag-list">
+          <span class="tech-tag">永久無料ホスティング</span>
+          <span class="tech-tag">SSL(HTTPS)自動付与</span>
+          <span class="tech-tag">PWAライク体験</span>
+        </div>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="tech-card" style="--card-accent: #38bdf8;">
+        <div class="tech-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+        </div>
+        <div class="tech-category">Pipeline Logic</div>
+        <h2 class="tech-title">Python & Jinja2</h2>
+        <p class="tech-desc">
+          feedparserで各社RSSをスクレイピングし、Jinja2でレスポンシブHTMLを生成。軽量・高速・高堅牢なスクリプト構成。
+        </p>
+        <div class="tech-tag-list">
+          <span class="tech-tag">feedparser</span>
+          <span class="tech-tag">beautifulsoup4</span>
+          <span class="tech-tag">Jinja2 Template</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 深掘り: なぜ完全無料で運用できるのか -->
+    <div class="deep-dive">
+      <div class="dive-box">
+        <div class="dive-header">
+          <span class="dive-icon">💡</span>
+          <h3 class="dive-title">完全無料（Zero-Cost）の成立ロジック</h3>
+        </div>
+        <ul class="dive-list">
+          <li><strong>GitHub Actionsの無料枠:</strong> 1回あたり約35秒の実行。月30日動かしても約18分しか消費せず、月間2,000分の無料枠の1%未満です。</li>
+          <li><strong>Gemini APIのFree Tier:</strong> 記事を1本ずつではなく全件一括でプロンプトに投げる設計のため、API消費は1日わずか1回。無料上限（1,500回/日）を大幅に下回ります。</li>
+          <li><strong>GitHub Pagesの静的ホスティング:</strong> サーバーを常時起動する必要がなく、生成されたHTMLファイルを静的に配信するためサーバー費用は永久に0円です。</li>
+        </ul>
+      </div>
+
+      <div class="dive-box">
+        <div class="dive-header">
+          <span class="dive-icon">📱</span>
+          <h3 class="dive-title">ブラウザ閲覧（PWA風）を選んだ理由</h3>
+        </div>
+        <ul class="dive-list">
+          <li><strong>OSに依存しない:</strong> iPhone (iOS) でも Android でも、パソコンでも、URLさえ知っていれば全く同じUIで閲覧できます。</li>
+          <li><strong>ストア審査・メンテ不要:</strong> アプリストアの公開審査やOSアップデートによるアプリ破損のメンテナンスコストがゼロになります。</li>
+          <li><strong>ワンタップ起動:</strong> ブラウザの「ホーム画面に追加」を行うだけで、ネイティブアプリ同様のアプリアイコンから即起動できます。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- フッター -->
+    <footer>
+      <p>システム設計・構築: 毎朝更新AIニュースまとめシステム (ai-news-digest)</p>
+      <p style="margin-top:6px;">公開先Webサイト: <a href="index.html" target="_blank">https://cluclu-land.github.io/ai-news-digest/</a></p>
+    </footer>
+
+  </div>
+
+</body>
+</html>
