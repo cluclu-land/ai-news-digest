@@ -17,11 +17,11 @@
 - ホスティング: GitHub Pages（カスタムドメイン不要、URLアクセスで全端末から閲覧可能）
 
 ## 4. 主なタスク一覧
-- [ ] ドキュメント整備（task.md, implementation_plan.md）
-- [ ] ニュース取得・要約・HTML生成スクリプト（Python）の開発
-- [ ] モバイル最適化されたHTMLテンプレート（UI/UX）の作成
-- [ ] ローカル環境でのテスト実行とHTML表示確認
-- [ ] GitHubリポジトリへのコミット＆プッシュ
-- [ ] GitHub Actionsワークフローの構築（定期自動更新設定）
-- [ ] GitHub Pagesの設定とスマホでの動作確認
-- [ ] 変更記録（walkthrough.md）の作成
+- [x] ドキュメント整備（task.md, implementation_plan.md）
+- [x] ニュース取得・要約・HTML生成スクリプト（Python）の開発
+- [x] モバイル最適化されたHTMLテンプレート（UI/UX）の作成
+- [x] ローカル環境でのテスト実行とHTML表示確認
+- [x] GitHubリポジトリへのコミット＆プッシュ
+- [x] GitHub Actionsワークフローの構築（定期自動更新設定）
+- [x] GitHub Pagesの設定とスマホでの動作確認
+- [x] 変更記録（walkthrough.md）の作成
